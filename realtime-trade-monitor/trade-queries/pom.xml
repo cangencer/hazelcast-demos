@@ -26,7 +26,7 @@
         </dependency>
         <dependency>
             <groupId>com.hazelcast.jet</groupId>
-            <artifactId>hazelcast-jet-kafka</artifactId>
+            <artifactId>hazelcast-jet-kinesis</artifactId>
             <version>${hazelcast.version}</version>
         </dependency>
         <dependency>

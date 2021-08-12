@@ -12,11 +12,6 @@ import com.hazelcast.jet.datamodel.Tuple3;
 import com.hazelcast.jet.pipeline.Pipeline;
 import com.hazelcast.jet.pipeline.Sinks;
 import com.hazelcast.jet.pipeline.StreamStage;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.serialization.LongSerializer;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
-import com.hazelcast.jet.kafka.KafkaSources;
 
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -49,45 +44,28 @@ public class AggregateQuery {
     private static Pipeline createPipeline(String servers) {
         Pipeline p = Pipeline.create();
 
-        StreamStage<Trade> source =
-                p.readFrom(KafkaSources.<String, Trade, Trade>kafka(kafkaSourceProps(servers),
-                        ConsumerRecord::value, TOPIC))
-                        .withoutTimestamps();
-
-
-        StreamStage<Entry<String, Tuple3<Long, Long, Integer>>> aggregated =
-                source
-                        .groupingKey(Trade::getSymbol)
-                        .rollingAggregate(allOf(
-                                counting(),
-                                summingLong(trade -> trade.getPrice() * trade.getQuantity()),
-                                latestValue(trade -> trade.getPrice())
-                        ))
-                        .setName("aggregate by symbol");
-
-        // write results to IMDG IMap
-        aggregated.writeTo(Sinks.map("query1_Results"));
+//        StreamStage<Trade> source =
+//                p.readFrom(KafkaSources.<String, Trade, Trade>kafka(kafkaSourceProps(servers),
+//                        ConsumerRecord::value, TOPIC))
+//                        .withoutTimestamps();
+//
+//
+//        StreamStage<Entry<String, Tuple3<Long, Long, Integer>>> aggregated =
+//                source
+//                        .groupingKey(Trade::getSymbol)
+//                        .rollingAggregate(allOf(
+//                                counting(),
+//                                summingLong(trade -> trade.getPrice() * trade.getQuantity()),
+//                                latestValue(trade -> trade.getPrice())
+//                        ))
+//                        .setName("aggregate by symbol");
+//
+//        // write results to IMDG IMap
+//        aggregated.writeTo(Sinks.map("query1_Results"));
         // write results to Kafka topic
 //        aggregated
 //                .drainTo(KafkaSinks.kafka(kafkaSinkProps(servers), "query1_Results"));
         return p;
-    }
-
-    private static Properties kafkaSourceProps(String servers) {
-        Properties props = new Properties();
-        props.setProperty("auto.offset.reset", "earliest");
-        props.setProperty("bootstrap.servers", servers);
-        props.setProperty("key.deserializer", StringDeserializer.class.getName());
-        props.setProperty("value.deserializer", TradeJsonDeserializer.class.getName());
-        return props;
-    }
-
-    private static Properties kafkaSinkProps(String servers) {
-        Properties props = new Properties();
-        props.setProperty("bootstrap.servers", servers);
-        props.setProperty("key.serializer", StringSerializer.class.getName());
-        props.setProperty("value.serializer", LongSerializer.class.getName());
-        return props;
     }
 
     private static <T, R> AggregateOperation1<T, ?, R> latestValue(FunctionEx<T, R> toValueFn) {

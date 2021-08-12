@@ -28,7 +28,7 @@ public class App {
             if (command.equals("load-symbols")) {
                 LoadSymbols.loadSymbols(hzInstance);
             } else if (command.equals("ingest-trades")) {
-                IngestTrades.ingestTrades(hzInstance, args[1]);
+                IngestTrades.ingestTrades(hzInstance);
             } else if (command.equals("aggregate-query")) {
                 AggregateQuery.aggregateQuery(hzInstance, args[1]);
             } else if (command.equals("benchmark-index")) {
