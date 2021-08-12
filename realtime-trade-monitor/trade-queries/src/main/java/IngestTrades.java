@@ -35,7 +35,10 @@ public class IngestTrades {
     private static Pipeline createPipeline() {
         Pipeline p = Pipeline.create();
         StreamSource<Entry<String, byte[]>> source = KinesisSources.kinesis(STREAM)
+            .withRegion(System.getenv("AWS_REGION"))
+            .withCredentials(System.getenv("AWS_ACCESS_KEY"), System.getenv("AWS_SECRET_KEY"))
             .withInitialShardIteratorRule(".*", "LATEST", null)
+            .withEndpoint("https://kinesis.us-west-2.amazonaws.com")
             .build();
         p.readFrom(source)
             .withoutTimestamps()
