@@ -1,3 +1,4 @@
+import com.hazelcast.config.IndexType;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import java.io.BufferedReader;
@@ -17,6 +18,7 @@ public final class LoadSymbols {
                 Trade.class.getResourceAsStream("/nasdaqlisted.txt"), UTF_8))
         ) {
             IMap<String, String> symbols = hzInstanse.getMap("symbols");
+            symbols.addIndex(IndexType.HASH, "this");
             Map<String, String> map = reader.lines()
                                                 .skip(1)
                                                 .map(l -> {
