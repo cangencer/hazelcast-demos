@@ -32,7 +32,7 @@ public class IngestTrades {
                 .addClass(IngestTrades.class);
 
             JetService jetService = hzInstance.getJet();
-            jetService.newJobIfAbsent(createPipeline(), ingestTradesConfig);
+            jetService.newJobIfAbsent(createPipeline(), ingestTradesConfig).join();
         }
         finally {
             Hazelcast.shutdownAll();
@@ -45,7 +45,6 @@ public class IngestTrades {
             .withRegion(System.getenv("AWS_REGION"))
             .withCredentials(System.getenv("AWS_ACCESS_KEY"), System.getenv("AWS_SECRET_KEY"))
             .withInitialShardIteratorRule(".*", "LATEST", null)
-            .withEndpoint("https://kinesis.us-west-2.amazonaws.com")
             .build();
         p.readFrom(source)
             .withoutTimestamps()

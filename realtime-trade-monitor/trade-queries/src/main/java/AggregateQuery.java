@@ -29,7 +29,7 @@ public class AggregateQuery {
 
     public static final String STREAM = "trades";
 
-    public static void aggregateQuery(HazelcastInstance hzInstance, String servers) {
+    public static void aggregateQuery(HazelcastInstance hzInstance) {
         try {
             JobConfig query1config = new JobConfig()
                     .setProcessingGuarantee(ProcessingGuarantee.EXACTLY_ONCE)
@@ -39,21 +39,20 @@ public class AggregateQuery {
                     .addClass(AggregateQuery.class);
 
             JetService jetService = hzInstance.getJet();
-            jetService.newJobIfAbsent(createPipeline(servers), query1config);
+            jetService.newJobIfAbsent(createPipeline(), query1config).join();
 
         } finally {
             Hazelcast.shutdownAll();
         }
     }
 
-    private static Pipeline createPipeline(String servers) {
+    private static Pipeline createPipeline() {
         Pipeline p = Pipeline.create();
 
         StreamSource<Entry<String, byte[]>> kinesisSource = KinesisSources.kinesis(STREAM)
                 .withRegion(System.getenv("AWS_REGION"))
                 .withCredentials(System.getenv("AWS_ACCESS_KEY"), System.getenv("AWS_SECRET_KEY"))
                 .withInitialShardIteratorRule(".*", "LATEST", null)
-                .withEndpoint("https://kinesis.us-west-2.amazonaws.com")
                 .build();
 
         p.readFrom(kinesisSource)

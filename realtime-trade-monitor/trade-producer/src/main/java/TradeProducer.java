@@ -77,6 +77,8 @@ public class TradeProducer {
                         price,
                         rnd.nextInt(10, QUANTITY)
                 );
+
+                //TODO: convert to batch
                 PutRecordRequest putRequest  = new PutRecordRequest();
                 putRequest.setStreamName(STREAM);
                 putRequest.setPartitionKey(symbol);
