@@ -1,13 +1,14 @@
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
+import com.amazonaws.services.kinesis.AmazonKinesis;
+import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
+import com.amazonaws.services.kinesis.model.PutRecordRequest;
+import com.amazonaws.services.kinesis.model.PutRecordResult;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -20,35 +21,33 @@ public class TradeProducer {
 
     private static final int MAX_BATCH_SIZE = 16 * 1024;
     private static final int QUANTITY = 10_000;
-    private static final String TOPIC = "trades";
+    private static final String STREAM = "trades";
 
     private final int rate;
     private final Map<String, Integer> symbolToPrice;
-    private final KafkaProducer<String, String> producer;
     private final List<String> symbols;
+    private final AmazonKinesis kinesisClient;
 
     private long emitSchedule;
 
     public static void main(String[] args) throws InterruptedException {
         if (args.length == 0) {
-            System.out.println("TradeProducer <bootstrap servers> <rate>");
+            System.out.println("TradeProducer <rate>");
             System.exit(1);
         }
-        String servers = args[0];
-        int rate = Integer.parseInt(args[1]);
-        Properties props = new Properties();
-        props.setProperty("bootstrap.servers", servers);
-        props.setProperty("key.serializer", StringSerializer.class.getName());
-        props.setProperty("value.serializer", StringSerializer.class.getName());
+        int rate = Integer.parseInt(args[0]);
 
-        new TradeProducer(props, rate, loadSymbols()).run();
+        new TradeProducer(rate, loadSymbols()).run();
     }
 
-    private TradeProducer(Properties props, int rate, List<String> symbols) {
+    private TradeProducer(int rate, List<String> symbols) {
         this.rate = rate;
         this.symbols = symbols;
         this.symbolToPrice = symbols.stream().collect(Collectors.toMap(t -> t, t -> 2500));
-        this.producer = new KafkaProducer<>(props);
+        AmazonKinesisClientBuilder clientBuilder = AmazonKinesisClientBuilder.standard();
+        clientBuilder.setRegion("us-west-2");
+        this.kinesisClient = clientBuilder.build();
+
         this.emitSchedule = System.nanoTime();
     }
 
@@ -57,6 +56,7 @@ public class TradeProducer {
         while (true) {
             long interval = TimeUnit.SECONDS.toNanos(1) / rate;
             ThreadLocalRandom rnd = ThreadLocalRandom.current();
+            String seq = null;
             for (int i = 0; i < MAX_BATCH_SIZE; i++) {
                 if (System.nanoTime() < emitSchedule) {
                     break;
@@ -77,7 +77,14 @@ public class TradeProducer {
                         price,
                         rnd.nextInt(10, QUANTITY)
                 );
-                producer.send(new ProducerRecord<>(TOPIC, id, tradeLine));
+                PutRecordRequest putRequest  = new PutRecordRequest();
+                putRequest.setStreamName(STREAM);
+                putRequest.setPartitionKey(symbol);
+                putRequest.setSequenceNumberForOrdering(seq);
+                putRequest.setData(ByteBuffer.wrap(String.valueOf(tradeLine).getBytes()));
+                PutRecordResult result = kinesisClient.putRecord(putRequest);
+                seq = result.getSequenceNumber();
+                System.out.println(result);
                 emitSchedule += interval;
             }
             Thread.sleep(1);
