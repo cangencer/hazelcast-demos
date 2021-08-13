@@ -1,4 +1,5 @@
 import com.hazelcast.client.HazelcastClient;
+import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.EntryEvent;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastJsonValue;
@@ -15,14 +16,18 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import static com.hazelcast.client.properties.ClientProperty.HAZELCAST_CLOUD_DISCOVERY_TOKEN;
+import static com.hazelcast.client.properties.ClientProperty.STATISTICS_ENABLED;
 
 public class WebServer {
 
     private static final Map<String, WsContext> sessions = new ConcurrentHashMap<>();
     private static final Map<String, List<WsContext>> symbolsToBeUpdated = new ConcurrentHashMap<>();
-    private static final HazelcastInstance client = HazelcastClient.newHazelcastClient();
+    private static final HazelcastInstance client = getHzInstance();
 
 
     public static void main(String[] args) {
@@ -118,5 +123,22 @@ public class WebServer {
 
     private static String priceToString(long price) {
         return String.format("$%,.2f", price / 100.0d);
+    }
+
+    private static HazelcastInstance getHzInstance() {
+        ClientConfig config = new ClientConfig();
+        config.setProperty(STATISTICS_ENABLED.getName(), "true");
+        String discoveryToken = System.getenv("DISCOVERY_TOKEN");
+        Objects.requireNonNull(discoveryToken, "DISCOVERY_TOKEN is not provided");
+        String cloudUrl = System.getenv("CLOUD_URL");
+        Objects.requireNonNull(cloudUrl, "CLOUD_URL is not provided");
+        String clusterName = System.getenv("CLUSTER_NAME");
+        Objects.requireNonNull(clusterName, "CLUSTER_NAME is not provided");
+        config.setProperty(HAZELCAST_CLOUD_DISCOVERY_TOKEN.getName(), discoveryToken);
+        config.setProperty("hazelcast.client.cloud.url", cloudUrl);
+        config.setClusterName(clusterName);
+        HazelcastInstance client = HazelcastClient.newHazelcastClient(config);
+        System.out.println("Connection Successful!");
+        return client;
     }
 }

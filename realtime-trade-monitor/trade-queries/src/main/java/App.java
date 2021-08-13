@@ -30,7 +30,7 @@ public class App {
             } else if (command.equals("ingest-trades")) {
                 IngestTrades.ingestTrades(hzInstance);
             } else if (command.equals("aggregate-query")) {
-                AggregateQuery.aggregateQuery(hzInstance, args[1]);
+                AggregateQuery.aggregateQuery(hzInstance);
             } else if (command.equals("benchmark-index")) {
                 Benchmark.benchmark(hzInstance);
             } else if (command.equals("benchmark-latency")) {
