@@ -81,7 +81,7 @@ public class TradeProducer {
                         rnd.nextInt(10, QUANTITY)
                     );
                     PutRecordsRequestEntry putRequest  = new PutRecordsRequestEntry();
-                    putRequest.setPartitionKey(symbol);
+                    putRequest.setPartitionKey(id);
                     putRequest.setData(ByteBuffer.wrap(String.valueOf(tradeLine).getBytes()));
                     records.add(putRequest);
                 }
