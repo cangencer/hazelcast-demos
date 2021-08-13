@@ -1,3 +1,15 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+import io.javalin.Javalin;
+import io.javalin.websocket.WsContext;
+import org.json.JSONObject;
+
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.EntryEvent;
@@ -6,19 +18,6 @@ import com.hazelcast.core.HazelcastJsonValue;
 import com.hazelcast.jet.datamodel.Tuple3;
 import com.hazelcast.map.IMap;
 import com.hazelcast.map.listener.EntryAddedListener;
-import com.hazelcast.query.impl.predicates.EqualPredicate;
-import io.javalin.Javalin;
-import io.javalin.websocket.WsContext;
-import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import static com.hazelcast.client.properties.ClientProperty.HAZELCAST_CLOUD_DISCOVERY_TOKEN;
 import static com.hazelcast.client.properties.ClientProperty.STATISTICS_ENABLED;
@@ -28,7 +27,6 @@ public class WebServer {
     private static final Map<String, WsContext> sessions = new ConcurrentHashMap<>();
     private static final Map<String, List<WsContext>> symbolsToBeUpdated = new ConcurrentHashMap<>();
     private static final HazelcastInstance client = getHzInstance();
-
 
     public static void main(String[] args) {
         IMap<String, Tuple3<Long, Long, Integer>> results = client.getMap("query1_Results");
@@ -89,12 +87,19 @@ public class WebServer {
                     });
 
                     JSONObject jsonObject = new JSONObject();
-                    Collection<HazelcastJsonValue> records = trades.values(new EqualPredicate("symbol", symbol));
-                    records.forEach(trade -> {
-                        String tradeJson = trade.toString();
-                        jsonObject.put("symbol", symbol);
-                        jsonObject.append("data", new JSONObject(tradeJson));
-                    });
+                    client.getSql().execute("select id, \"timestamp\", symbol, price, quantity from trades "
+                            + "where symbol = ?", symbol)
+                        .forEach(record -> {
+                            JSONObject tradeObject = new JSONObject();
+                            tradeObject.put("id", record.<String>getObject("id"));
+                            tradeObject.put("timestamp", record.<Long>getObject("timestamp"));
+                            tradeObject.put("symbol", record.<String>getObject("symbol"));
+                            tradeObject.put("price", record.<Integer>getObject("price"));
+                            tradeObject.put("quantity", record.<Integer>getObject("quantity"));
+                            jsonObject.put("symbol", symbol);
+                            jsonObject.append("data", tradeObject);
+                            }
+                        );
                     session.send(jsonObject.toString());
                 }
             });
@@ -141,4 +146,5 @@ public class WebServer {
         System.out.println("Connection Successful!");
         return client;
     }
+
 }
