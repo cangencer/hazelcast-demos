@@ -1,12 +1,14 @@
 import com.amazonaws.services.kinesis.AmazonKinesis;
 import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
-import com.amazonaws.services.kinesis.model.PutRecordRequest;
-import com.amazonaws.services.kinesis.model.PutRecordResult;
+import com.amazonaws.services.kinesis.model.PutRecordsRequest;
+import com.amazonaws.services.kinesis.model.PutRecordsRequestEntry;
+import com.amazonaws.services.kinesis.model.PutRecordsResult;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,7 +21,7 @@ import static java.util.stream.Collectors.toList;
 
 public class TradeProducer {
 
-    private static final int MAX_BATCH_SIZE = 16 * 1024;
+    private static final int MAX_BATCH_SIZE = 100;
     private static final int QUANTITY = 10_000;
     private static final String STREAM = "trades";
 
@@ -56,38 +58,42 @@ public class TradeProducer {
         while (true) {
             long interval = TimeUnit.SECONDS.toNanos(1) / rate;
             ThreadLocalRandom rnd = ThreadLocalRandom.current();
-            String seq = null;
-            for (int i = 0; i < MAX_BATCH_SIZE; i++) {
-                if (System.nanoTime() < emitSchedule) {
-                    break;
-                }
-                String symbol = symbols.get(rnd.nextInt(symbols.size()));
-                int price = symbolToPrice.compute(symbol, (t, v) -> v + rnd.nextInt(-1, 2));
-                String id = UUID.randomUUID().toString();
-                String tradeLine = String.format("{" +
-                                "\"id\": \"%s\"," +
-                                "\"timestamp\": %d," +
-                                "\"symbol\": \"%s\"," +
-                                "\"price\": %d," +
-                                "\"quantity\": %d" +
-                                "}",
+            for (int i = 0 ; i < rate; i++) {
+                List<PutRecordsRequestEntry> records = new ArrayList<>();
+                for (int k = i; k < MAX_BATCH_SIZE && k < rate; k++, i++) {
+                    if (System.nanoTime() < emitSchedule) {
+                        break;
+                    }
+                    String symbol = symbols.get(rnd.nextInt(symbols.size()));
+                    int price = symbolToPrice.compute(symbol, (t, v) -> v + rnd.nextInt(-1, 2));
+                    String id = UUID.randomUUID().toString();
+                    String tradeLine = String.format("{" +
+                            "\"id\": \"%s\"," +
+                            "\"timestamp\": %d," +
+                            "\"symbol\": \"%s\"," +
+                            "\"price\": %d," +
+                            "\"quantity\": %d" +
+                            "}",
                         id,
                         System.currentTimeMillis(),
                         symbol,
                         price,
                         rnd.nextInt(10, QUANTITY)
-                );
-
-                //TODO: convert to batch
-                PutRecordRequest putRequest  = new PutRecordRequest();
-                putRequest.setStreamName(STREAM);
-                putRequest.setPartitionKey(symbol);
-                putRequest.setSequenceNumberForOrdering(seq);
-                putRequest.setData(ByteBuffer.wrap(String.valueOf(tradeLine).getBytes()));
-                PutRecordResult result = kinesisClient.putRecord(putRequest);
-                seq = result.getSequenceNumber();
-                System.out.println(result);
+                    );
+                    PutRecordsRequestEntry putRequest  = new PutRecordsRequestEntry();
+                    putRequest.setPartitionKey(symbol);
+                    putRequest.setData(ByteBuffer.wrap(String.valueOf(tradeLine).getBytes()));
+                    records.add(putRequest);
+                }
+                if (records.isEmpty()) {
+                    break;
+                }
+                PutRecordsRequest putRecordsRequest = new PutRecordsRequest();
+                putRecordsRequest.setStreamName(STREAM);
+                putRecordsRequest.setRecords(records);
+                PutRecordsResult putRecordsResult = kinesisClient.putRecords(putRecordsRequest);
                 emitSchedule += interval;
+                System.out.printf("Sent %s records, failed %s%n", putRecordsResult.getRecords().size(), putRecordsResult.getFailedRecordCount());
             }
             Thread.sleep(1);
         }
